@@ -1,0 +1,14 @@
+{
+  "name": "yahtzee",
+  "version": "1.0.0",
+  "description": "Node.js port of the 1978 Apple Computer Yahtzee (original adapted by Gary A. Foote)",
+  "type": "module",
+  "main": "src/cli.js",
+  "author": "Ted Holtz",
+  "scripts": {
+    "start": "node src/tui.js",
+    "cli": "node src/cli.js",
+    "test": "node --test test/"
+  },
+  "license": "UNLICENSED"
+}
