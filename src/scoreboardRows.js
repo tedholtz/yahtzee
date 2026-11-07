@@ -18,7 +18,7 @@ export const SCOREBOARD_ROWS = [
   { kind: 'cat', id: 'yahtzee', label: 'Yahtzee' },
   { kind: 'cat', id: 'chance', label: 'Chance' },
   { kind: 'lowerTotal', label: 'Lower Total' },
-  { kind: 'grandTotal', label: 'GRAND TOTAL' },
+  { kind: 'grandTotal', label: 'Game Total' },
 ];
 
 export function scoreboardCell(player, row) {

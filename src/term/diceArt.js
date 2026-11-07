@@ -1,5 +1,9 @@
 // Pip layout per face, decoded from the original 1978 BASIC drawing routine
 // (lines 6070-6230 of YAHTZEE.bas): each face is 3 rows of [left, mid, right].
+// Box-drawing characters and the pip glyph are standard single-width glyphs
+// on virtually every terminal font, unlike the Unicode die-face symbols
+// (U+2680-U+2685), which render double-width in some fonts and corrupt
+// fixed-column layouts - so this is the safe way to draw a "real" die.
 const PIP_PATTERNS = {
   1: [[0, 0, 0], [0, 1, 0], [0, 0, 0]],
   2: [[0, 0, 1], [0, 0, 0], [1, 0, 0]],
@@ -9,14 +13,8 @@ const PIP_PATTERNS = {
   6: [[1, 0, 1], [1, 0, 1], [1, 0, 1]],
 };
 
-const DIE_GLYPHS = { 1: '⚀', 2: '⚁', 3: '⚂', 4: '⚃', 5: '⚄', 6: '⚅' };
-
 export const BOX_WIDTH = 9;
 export const BOX_HEIGHT = 5;
-
-export function dieGlyph(value) {
-  return DIE_GLYPHS[value] || '?';
-}
 
 /** Returns an array of BOX_HEIGHT strings, each BOX_WIDTH wide. */
 export function dieBoxLines(value, { held = false } = {}) {

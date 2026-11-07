@@ -3,7 +3,7 @@ import { stdin, stdout } from 'node:process';
 import { Dice } from './dice.js';
 import { Player } from './player.js';
 import { CATEGORIES, PERFECT_GAME_TOTAL } from './categories.js';
-import { decideKeep, decideCategory } from './ai.js';
+import { decideKeep, decideCategory, pickRandomSkill, SKILL_LETTERS } from './ai.js';
 import { pickComputerNames } from './computerNames.js';
 import { SCOREBOARD_ROWS, scoreboardCell } from './scoreboardRows.js';
 
@@ -73,7 +73,10 @@ async function selectPlayers() {
     }
   }
 
-  const computers = pickComputerNames(computerCount).map((name) => new Player(name, { isComputer: true }));
+  const computers = pickComputerNames(computerCount).map((name) => {
+    const skill = pickRandomSkill();
+    return new Player(`${name}-${SKILL_LETTERS[skill]}`, { isComputer: true, skill });
+  });
   return [...humans, ...computers];
 }
 
@@ -129,7 +132,7 @@ function computerTurn(player) {
   dice.rollAll();
   let rolls = 1;
   while (rolls < MAX_ROLLS) {
-    const keepIdx = decideKeep(dice.values, player.scoreCard);
+    const keepIdx = decideKeep(dice.values, player.scoreCard, player.skill);
     const keepSet = new Set(keepIdx);
     for (let i = 0; i < 5; i++) {
       if (keepSet.has(i)) dice.keep(i);
@@ -139,7 +142,7 @@ function computerTurn(player) {
     dice.roll();
     rolls++;
   }
-  const categoryId = decideCategory(player.scoreCard, dice.values);
+  const categoryId = decideCategory(player.scoreCard, dice.values, player.skill);
   const scored = player.scoreCard.score(categoryId, dice.values);
   console.log(`${player.name} rolls ${dice.values.join(' ')} and scores ${scored} in ${CATEGORIES.find((c) => c.id === categoryId).label}.`);
 }
