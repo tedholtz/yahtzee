@@ -1,6 +1,7 @@
 // Row order matches the original 1978 BASIC scorecard screen exactly
 // (routine at line 8010 of YAHTZEE.bas: 6 upper categories, bonus, upper
-// total, 7 lower categories, lower total, grand total).
+// total, 7 lower categories, lower total, grand total), plus a blank spacer
+// row between the upper and lower sections.
 export const SCOREBOARD_ROWS = [
   { kind: 'cat', id: 'ones', label: 'Aces' },
   { kind: 'cat', id: 'twos', label: 'Twos' },
@@ -10,6 +11,7 @@ export const SCOREBOARD_ROWS = [
   { kind: 'cat', id: 'sixes', label: 'Sixes' },
   { kind: 'bonus', label: 'Bonus' },
   { kind: 'upperTotal', label: 'Upper Total' },
+  { kind: 'spacer', label: '' },
   { kind: 'cat', id: 'threeKind', label: '3/Kind' },
   { kind: 'cat', id: 'fourKind', label: '4/Kind' },
   { kind: 'cat', id: 'fullHouse', label: 'Fl.House' },

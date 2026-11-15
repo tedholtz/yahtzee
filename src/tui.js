@@ -12,6 +12,8 @@ const MAX_PLAYERS = 5;
 const GAMES_PER_SERIES = 6;
 const ROUNDS_PER_GAME = 13;
 const MAX_ROLLS = 3;
+const ROLL_ANIMATION_FRAMES = 3;
+const ROLL_ANIMATION_PAUSE_MS = 100;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -50,8 +52,8 @@ const GRID_START_COL = DICE_COL_WIDTH + DICE_GRID_GAP;
 const DICE_ROWS = BOX_HEIGHT * 5; // 5 boxes stacked directly - each one's own border already separates it
 
 // Rows consumed by the header (with a spacer line) plus the taller of: the
-// always-visible scorecard grid (player-name row + separator + 17 category
-// rows + a blank spacer + the series-total row), or the dice column beside
+// always-visible scorecard grid (player-name row + separator + 18 category
+// rows (including the spacer) + a blank spacer + the series-total row), or the dice column beside
 // it. Every screen's height budget is this baseline plus however many extra
 // rows its own content below both needs.
 const GRID_ROWS = 2 + SCOREBOARD_ROWS.length + 2;
@@ -253,9 +255,7 @@ async function humanTurn(player, header, order) {
   let selected = 0;
   let categoryId = null;
 
-  while (categoryId === null) {
-    const open = player.scoreCard.openCategories();
-    const canReroll = rolls < MAX_ROLLS;
+  const drawTurn = (open) =>
     drawFrameOrResize(order, 1, () => {
       const afterHeader = drawGameHeader(header);
       renderDiceColumn(afterHeader, dice.values, dice.kept);
@@ -271,6 +271,11 @@ async function humanTurn(player, header, order) {
       );
     });
 
+  while (categoryId === null) {
+    const open = player.scoreCard.openCategories();
+    const canReroll = rolls < MAX_ROLLS;
+    drawTurn(open);
+
     const key = await waitForKey(reader);
     if (key.name === 'ctrl-c') cleanupAndExit();
     if (key.name === 'up') selected = (selected - 1 + open.length) % open.length;
@@ -278,8 +283,14 @@ async function humanTurn(player, header, order) {
     else if (key.name === 'enter') categoryId = open[selected].id;
     else if (key.name === 'char' && /^[1-5]$/.test(key.char)) dice.toggle(Number(key.char) - 1);
     else if (key.name === 'space' && canReroll) {
-      dice.roll();
       rolls++;
+      // Tumble through intermediate faces before settling; the loop's next draw shows the final set.
+      for (let i = 0; i < ROLL_ANIMATION_FRAMES - 1; i++) {
+        dice.roll();
+        drawTurn(open);
+        await sleep(ROLL_ANIMATION_PAUSE_MS);
+      }
+      dice.roll();
     }
   }
 
