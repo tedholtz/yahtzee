@@ -30,9 +30,23 @@ function setFrame(renderFn) {
   currentRender();
 }
 
+// Players and whether their current game's score is already folded into seriesTotal,
+// so the final standings can be printed to stdout after the screen is restored.
+let standingsPlayers = null;
+let gameInProgress = false;
+
+function standingsText(players) {
+  const total = (p) => p.seriesTotal + (gameInProgress ? p.scoreCard.grandTotal() : 0);
+  const ranked = [...players].sort((a, b) => total(b) - total(a));
+  const lines = ['SERIES STANDINGS', ...ranked.map((p, i) => `${i + 1}. ${p.name.padEnd(14)} ${total(p)}`)];
+  if (!gameInProgress) lines.push('', `CONGRATULATIONS, ${ranked[0].name}!`);
+  return lines.join('\n');
+}
+
 function cleanupAndExit(code = 0) {
   reader.close();
   screen.stop();
+  if (standingsPlayers && standingsPlayers.length > 0) console.log(standingsText(standingsPlayers));
   process.exit(code);
 }
 
@@ -215,37 +229,51 @@ async function askComputerCount(maxAllowed) {
   }
 }
 
+function generateComputers(count) {
+  return pickComputerNames(count).map((name) => {
+    const skill = pickRandomSkill();
+    return new Player(`${name}-${SKILL_LETTERS[skill]}`, { isComputer: true, skill });
+  });
+}
+
 async function selectPlayersScreen() {
   const humans = await selectHumanPlayersScreen();
   const remainingSlots = MAX_PLAYERS - humans.length;
   let computerCount = 0;
   if (remainingSlots > 0) computerCount = await askComputerCount(remainingSlots);
-  const computers = pickComputerNames(computerCount).map((name) => {
-    const skill = pickRandomSkill();
-    return new Player(`${name}-${SKILL_LETTERS[skill]}`, { isComputer: true, skill });
-  });
-  return [...humans, ...computers];
+  return { humans, computerCount };
 }
 
-async function rollOffScreen(players) {
-  if (players.length <= 1) return players;
-  const rolled = players.map((p) => {
-    const d = new Dice();
-    d.rollAll();
-    return { player: p, total: d.values.reduce((a, b) => a + b, 0), values: d.values };
-  });
-  rolled.sort((a, b) => b.total - a.total);
-  setFrame(() => {
-    screen.centerAt(1, 'Y A H T Z E E');
-    screen.centerAt(3, 'Rolling to determine player order...');
-    rolled.forEach((r, i) => screen.writeAt(5 + i, 4, `${r.player.name.padEnd(12)} ${r.values.join(' ')}  = ${r.total}`));
-    let row = 5 + rolled.length + 2;
-    screen.writeAt(row++, 4, 'Player order:');
-    rolled.forEach((r, i) => screen.writeAt(row + i, 4, `${i + 1}. ${r.player.name}`));
-    screen.centerAt(screen.height - 1, 'Press [SPACE] to continue...');
-  });
-  await waitForSpace();
-  return rolled.map((r) => r.player);
+/**
+ * Rolls for player order and shows it. If there are computer opponents, [R] discards them and
+ * generates (and rolls for) a new set. Resolves to the final player order.
+ */
+async function rollOffScreen(humans, computerCount) {
+  while (true) {
+    const players = [...humans, ...generateComputers(computerCount)];
+    const rolled = players.map((p) => {
+      const d = new Dice();
+      d.rollAll();
+      return { player: p, total: d.values.reduce((a, b) => a + b, 0), values: d.values };
+    });
+    if (players.length > 1) rolled.sort((a, b) => b.total - a.total);
+    setFrame(() => {
+      screen.centerAt(1, 'Y A H T Z E E');
+      screen.centerAt(3, 'Rolling to determine player order...');
+      rolled.forEach((r, i) => screen.writeAt(5 + i, 4, `${r.player.name.padEnd(12)} ${r.values.join(' ')}  = ${r.total}`));
+      let row = 5 + rolled.length + 2;
+      screen.writeAt(row++, 4, 'Player order:');
+      rolled.forEach((r, i) => screen.writeAt(row + i, 4, `${i + 1}. ${r.player.name}`));
+      const prompt = computerCount > 0 ? 'Press [SPACE] to continue, or [R] for new opponents...' : 'Press [SPACE] to continue...';
+      screen.centerAt(screen.height - 1, prompt);
+    });
+    while (true) {
+      const key = await waitForKey(reader);
+      if (key.name === 'ctrl-c') cleanupAndExit();
+      if (key.name === 'space') return rolled.map((r) => r.player);
+      if (computerCount > 0 && key.name === 'char' && key.char.toLowerCase() === 'r') break;
+    }
+  }
 }
 
 async function humanTurn(player, header, order) {
@@ -361,17 +389,6 @@ async function askContinueSeries(order, gameNumber) {
   }
 }
 
-async function showStandings(players) {
-  const ranked = [...players].sort((a, b) => b.seriesTotal - a.seriesTotal);
-  setFrame(() => {
-    screen.centerAt(1, 'SERIES STANDINGS');
-    ranked.forEach((p, i) => screen.writeAt(3 + i, 4, `${i + 1}. ${p.name.padEnd(14)} ${p.seriesTotal}`));
-    screen.centerAt(3 + ranked.length + 2, `CONGRATULATIONS, ${ranked[0].name}!`);
-    screen.centerAt(screen.height - 1, 'Press [SPACE] to exit...');
-  });
-  await waitForSpace();
-}
-
 async function main() {
   screen.start();
   process.stdout.on('resize', () => {
@@ -388,16 +405,18 @@ async function main() {
   });
   await waitForSpace();
 
-  const players = await selectPlayersScreen();
-  if (players.length === 0) {
+  const { humans, computerCount } = await selectPlayersScreen();
+  if (humans.length + computerCount === 0) {
     cleanupAndExit(0);
     return;
   }
 
-  const order = await rollOffScreen(players);
+  const order = await rollOffScreen(humans, computerCount);
+  standingsPlayers = order;
 
   for (let game = 1; game <= GAMES_PER_SERIES; game++) {
     for (const p of order) p.newGame();
+    gameInProgress = true;
     for (let round = 1; round <= ROUNDS_PER_GAME; round++) {
       for (const player of order) {
         const header = { game, round, player };
@@ -406,13 +425,13 @@ async function main() {
       }
     }
     for (const p of order) p.seriesTotal += p.scoreCard.grandTotal();
+    gameInProgress = false;
     if (game < GAMES_PER_SERIES) {
       const keepGoing = await askContinueSeries(order, game);
       if (!keepGoing) break;
     }
   }
 
-  await showStandings(order);
   cleanupAndExit(0);
 }
 
